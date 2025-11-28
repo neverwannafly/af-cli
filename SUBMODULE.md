@@ -32,6 +32,8 @@ When working on the CLI:
 cd cli
 git checkout -b feature/your-feature
 # Make your changes
+npm install  # Install dependencies
+npm link     # Test locally
 git add .
 git commit -m "Your changes"
 git push origin feature/your-feature
@@ -52,8 +54,8 @@ git commit -m "Update CLI submodule to latest"
 ## Why a Separate Repository?
 
 The CLI tool is maintained as a separate public repository because:
-- It can be distributed independently
-- Users can install and use it without accessing the main API Frenzy codebase
+- It can be distributed independently via npm
+- Users can install globally: `npm install -g @api-frenzy/cli`
 - It has its own release cycle and versioning
 - It maintains a clear separation of concerns
-
+- Easy to update: `npm update -g @api-frenzy/cli`

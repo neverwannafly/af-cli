@@ -1,0 +1,36 @@
+{
+  "name": "@api-frenzy/cli",
+  "version": "0.1.0",
+  "description": "Command-line interface for the API Frenzy platform",
+  "main": "index.js",
+  "bin": {
+    "af-cli": "./bin/af-cli.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "api-frenzy",
+    "cli",
+    "tunnel",
+    "wstunnel"
+  ],
+  "author": "API Frenzy",
+  "license": "BSD-3-Clause",
+  "dependencies": {
+    "commander": "^11.1.0",
+    "chalk": "^4.1.2"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/api-frenzy/af-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/api-frenzy/af-cli/issues"
+  },
+  "homepage": "https://github.com/api-frenzy/af-cli#readme"
+}
+
