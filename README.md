@@ -21,19 +21,13 @@ npm link
 
 ### Prerequisites
 
-The CLI requires `wstunnel` for tunnel connections.
+Use the Node version in `.nvmrc`.
 
-**Linux:**
 ```bash
-wget https://github.com/erebe/wstunnel/releases/latest/download/wstunnel-linux-amd64
-chmod +x wstunnel-linux-amd64
-sudo mv wstunnel-linux-amd64 /usr/local/bin/wstunnel
+nvm use
 ```
 
-**macOS:**
-```bash
-brew install wstunnel
-```
+The deprecated legacy tunnel flow still requires `wstunnel`.
 
 ## Commands
 
@@ -45,9 +39,95 @@ Display version information.
 af-cli version
 ```
 
-### Tunnel
+### OAuth Login
 
-Start a tunnel using wstunnel.
+Open the API Frenzy OAuth consent page, complete Authorization Code + PKCE, and store the returned access token for the active profile.
+
+```bash
+af-cli login
+```
+
+For local development after `npm run build:local`, this logs in against:
+
+```text
+http://localhost:8000
+```
+
+For production after `npm run build:prod`, this logs in against:
+
+```text
+https://apifrenzy.com
+```
+
+Options:
+
+```bash
+af-cli login --api-base-url http://localhost:8000
+```
+
+Logout:
+
+```bash
+af-cli logout
+```
+
+### Tunnel HTTP
+
+Publish a local HTTP service through API Frenzy.
+
+```bash
+af-cli tunnel http <port> --name <name>
+```
+
+The command reads configuration from:
+
+```text
+~/.config/api-frenzy/config.json
+```
+
+Supported config:
+
+```json
+{
+  "apiBaseUrl": "https://apifrenzy.com",
+  "sessionToken": "Bearer ...",
+  "defaultTunnelVisibility": "public_access"
+}
+```
+
+Environment overrides:
+
+- `AF_API_BASE_URL` or `API_FRENZY_API_BASE_URL`
+- `AF_SESSION_TOKEN` or `API_FRENZY_SESSION_TOKEN`
+- `AF_DEFAULT_TUNNEL_VISIBILITY`
+
+The configured API base URL overrides the build profile default.
+
+Example:
+
+```bash
+AF_SESSION_TOKEN="Bearer ..." af-cli tunnel http 3000 --name my-app
+```
+
+The tunnel will run until you press Ctrl+C. While it is running, the CLI displays a live in-memory dashboard refreshed every 2 seconds with request count, errors, p50/p95/p99 latency, bytes in/out, a small throughput graph, and the last 100 HTTP/WebSocket events in a table. These logs are process-local and are not written to backend storage.
+
+### Profile
+
+Show the active build profile and API base URL.
+
+```bash
+af-cli profile
+```
+
+### Legacy Tunnel
+
+Start a legacy tunnel using `wstunnel`.
+
+```bash
+af-cli tunnel connect <url> [options]
+```
+
+The old command shape still works but is deprecated:
 
 ```bash
 af-cli tunnel <url> [options]
@@ -65,16 +145,14 @@ af-cli tunnel <url> [options]
 
 ```bash
 # Basic tunnel
-af-cli tunnel http://tunnel.example.com:8000
+af-cli tunnel connect http://tunnel.example.com:8000
 
 # Custom local port
-af-cli tunnel http://tunnel.example.com:8000 -l 5433
+af-cli tunnel connect http://tunnel.example.com:8000 -l 5433
 
 # Custom remote target
-af-cli tunnel http://tunnel.example.com:8000 --remote-host db.internal --remote-port 3306
+af-cli tunnel connect http://tunnel.example.com:8000 --remote-host db.internal --remote-port 3306
 ```
-
-The tunnel will run until you press Ctrl+C.
 
 ## Project Structure
 
@@ -85,6 +163,10 @@ af-cli/
 ├── commands/
 │   ├── version.js        # Version command
 │   └── tunnel.js         # Tunnel command
+├── lib/
+│   ├── api-client.js     # API helper
+│   ├── config.js         # Config helper
+│   └── tunnel-agent.js   # Tunnel agent protocol/client
 ├── package.json          # npm package configuration
 └── README.md             # Documentation
 ```
@@ -116,28 +198,90 @@ const { deployCommand } = require('../commands/deploy');
 deployCommand(program);
 ```
 
-### Testing Locally
+### Build Profiles
+
+Build profiles set the default API base URL when no config or environment override is present:
+
+- `npm run build:local` uses `http://localhost:8000`
+- `npm run build:prod` uses `https://apifrenzy.com`
+
+The generated profile is written to `lib/build-profile.generated.json`. Runtime config still has priority over the generated default:
+
+1. `--api-base-url` / `--session-token` command options
+2. Environment variables
+3. `~/.config/api-frenzy/config.json`
+4. Generated build profile
+
+For one-off runs without changing the generated build profile, set `AF_CLI_PROFILE=local` or `AF_CLI_PROFILE=prod`.
+
+### Local Development Build
 
 ```bash
 # Install dependencies
 npm install
 
+# Generate the local build profile
+npm run build:local
+
 # Link for local testing
 npm link
 
-# Test the CLI
+# Confirm the CLI points at localhost by default
 af-cli version
-af-cli tunnel http://example.com:8000
+af-cli profile
+
+# Login against the local API/frontend at http://localhost:8000
+af-cli login
+
+# Publish a local service once your API Frenzy server is running
+af-cli tunnel http 3000 --name my-app
 ```
+
+Use the local build when the API Frenzy web/API stack is already running on `localhost:8000`.
+
+### Production Build
+
+```bash
+# Install dependencies
+npm install
+
+# Generate the production build profile
+npm run build:prod
+
+# Confirm the CLI points at production by default
+node bin/af-cli.js profile
+
+# Optional package dry run before publishing
+npm pack --dry-run
+```
+
+Use the production build before publishing the npm package so a fresh install defaults to `https://apifrenzy.com`.
 
 ### Publishing to npm
 
 ```bash
-# Login to npm
+# Build the production profile first
+npm run build:prod
+
+# Run syntax checks
+npm test
+
+# Login to npm if needed
 npm login
 
-# Publish
+# Inspect package contents
+npm pack --dry-run
+
+# Publish the public package
 npm publish --access public
+```
+
+After publishing, verify the package from a clean shell:
+
+```bash
+npm install -g @api-frenzy/cli
+af-cli profile
+af-cli version
 ```
 
 ## Distribution
