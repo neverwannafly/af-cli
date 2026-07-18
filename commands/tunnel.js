@@ -1,25 +1,13 @@
-const { spawn } = require('child_process');
 const chalk = require('chalk');
 const { ApiClient } = require('../lib/api-client');
 const { DEFAULT_TUNNEL_VISIBILITY, configPath, readConfig } = require('../lib/config');
 const { TunnelAgent } = require('../lib/tunnel-agent');
 const { TunnelDashboard } = require('../lib/tunnel-dashboard');
+const { RemoteTerminalAgent } = require('../lib/remote-terminal-agent');
+const { PrivateTcpConnection } = require('../lib/private-tcp-connection');
 
 function tunnelCommand(program) {
-  const tunnel = program
-    .command('tunnel [url]')
-    .description('Manage tunnels')
-    .action((url, options, command) => {
-      if (!url) {
-        command.help();
-        return;
-      }
-
-      console.log(chalk.yellow('[DEPRECATED]'), 'Use `af-cli tunnel connect <url>` for legacy wstunnel connections.');
-      startLegacyTunnel(url, command.opts());
-    });
-
-  addLegacyOptions(tunnel);
+  const tunnel = program.command('tunnel').description('Manage tunnels').action((_options, command) => command.help());
 
   tunnel
     .command('http <port>')
@@ -35,22 +23,29 @@ function tunnelCommand(program) {
       });
     });
 
-  const connect = tunnel
-    .command('connect <url>')
-    .description('Deprecated: start a legacy tunnel using wstunnel')
-    .action((url, options) => {
-      console.log(chalk.yellow('[DEPRECATED]'), '`af-cli tunnel connect` uses the legacy wstunnel flow.');
-      startLegacyTunnel(url, options);
+  tunnel
+    .command('remote')
+    .description('Open a private browser terminal to this machine')
+    .requiredOption('--name <name>', 'Remote terminal name')
+    .option('--api-base-url <url>', 'API Frenzy API base URL')
+    .option('--session-token <token>', 'API Frenzy session token')
+    .action((options) => {
+      startRemoteTerminal(options).catch((error) => {
+        console.error(chalk.red('[ERROR]'), error.message);
+        process.exit(1);
+      });
     });
 
-  addLegacyOptions(connect);
-}
-
-function addLegacyOptions(command) {
-  command
-    .requiredOption('-l, --local-port <port>', 'Local port to bind to', '5432')
-    .option('--remote-host <host>', 'Remote database host', 'localhost')
-    .option('--remote-port <port>', 'Remote database port', '5432');
+  tunnel.command('connect <deployment>')
+    .description('Connect an approved private TCP service on localhost')
+    .showHelpAfterError()
+    .option('--local-port <port>', 'Loopback port override for your native client')
+    .option('--api-base-url <url>', 'API Frenzy API base URL')
+    .option('--session-token <token>', 'API Frenzy session token')
+    .action((deployment, options) => startPrivateConnection(deployment, options).catch((error) => {
+      console.error(chalk.red('[ERROR]'), error.message);
+      process.exit(1);
+    }));
 }
 
 function parsePort(port) {
@@ -144,93 +139,88 @@ async function startHttpTunnel(port, options) {
   process.on('SIGTERM', shutdown);
 }
 
-function startLegacyTunnel(url, options) {
-  const { localPort, remoteHost, remotePort } = options;
+function normalizeRemoteTerminalData(data) {
+  return {
+    slug: data.slug || data.id,
+    agentConnectUrl: data.agent_connect_url || data.agentConnectUrl,
+    agentToken: data.agent_token || data.agentToken,
+  };
+}
 
-  // Convert http:// to ws:// and https:// to wss://
-  let wsUrl = url;
-  if (url.startsWith('http://')) {
-    wsUrl = 'ws://' + url.substring(7);
-  } else if (url.startsWith('https://')) {
-    wsUrl = 'wss://' + url.substring(8);
+async function startRemoteTerminal(options) {
+  const config = readConfig();
+  const apiClient = new ApiClient({ apiBaseUrl: options.apiBaseUrl, sessionToken: options.sessionToken });
+  if (!apiClient.hasSessionToken()) {
+    throw new Error(`No session token found. Run af-cli login when available, or set AF_SESSION_TOKEN. Config path: ${configPath()}`);
   }
 
-  console.log(chalk.green('[OK]'), 'Setting up tunnel...');
-  console.log(chalk.cyan('[->]'), `WebSocket Server: ${url}`);
-  console.log(chalk.cyan('[->]'), `Local Port: ${localPort}`);
-  console.log(chalk.cyan('[->]'), `Remote Target: ${remoteHost}:${remotePort}`);
-  console.log();
+  console.log(chalk.green('[OK]'), 'Creating remote terminal tunnel...');
+  const terminal = normalizeRemoteTerminalData(await apiClient.createTunnel({
+    name: options.name,
+    kind: 'remote_terminal',
+  }));
+  if (!terminal.agentConnectUrl || !terminal.agentToken) {
+    throw new Error('Remote Terminal API response did not include agent_connect_url and agent_token');
+  }
 
-  // Check if wstunnel is installed
-  const checkWstunnel = spawn('which', ['wstunnel']);
-  
-  checkWstunnel.on('close', (code) => {
-    if (code !== 0) {
-      console.error(chalk.red('[ERROR]'), 'wstunnel is not installed');
-      console.log(chalk.yellow('[INFO]'), 'Install wstunnel:');
-      console.log('  Linux: wget https://github.com/erebe/wstunnel/releases/latest/download/wstunnel-linux-amd64');
-      console.log('  macOS: brew install wstunnel');
-      process.exit(1);
-    }
-
-    // Start wstunnel
-    const args = [
-      'client',
-      '-L',
-      `tcp://127.0.0.1:${localPort}:${remoteHost}:${remotePort}`,
-      wsUrl
-    ];
-
-    console.log(chalk.yellow('[!]'), 'Starting wstunnel...');
-    console.log(chalk.cyan('[->]'), `Command: wstunnel ${args.join(' ')}`);
+  let shuttingDown = false;
+  const shutdown = async (message = 'Stopping remote terminal...') => {
+    if (shuttingDown) return;
+    shuttingDown = true;
     console.log();
+    console.log(chalk.yellow('[!]'), message);
+    agent.close();
+    process.exit(0);
+  };
 
-    const tunnel = spawn('wstunnel', args, {
-      stdio: 'inherit'
-    });
-
-    // Handle tunnel process
-    tunnel.on('error', (err) => {
-      console.error(chalk.red('[ERROR]'), 'Failed to start wstunnel:', err.message);
-      process.exit(1);
-    });
-
-    tunnel.on('close', (code) => {
-      if (code !== 0) {
-        console.log(chalk.red('[ERROR]'), `wstunnel exited with code ${code}`);
-        process.exit(code);
-      }
-      console.log(chalk.green('[OK]'), 'Tunnel closed');
-    });
-
-    // Handle Ctrl+C
-    process.on('SIGINT', () => {
-      console.log();
-      console.log(chalk.yellow('[!]'), 'Shutting down tunnel...');
-      tunnel.kill('SIGTERM');
-      
-      setTimeout(() => {
-        tunnel.kill('SIGKILL');
-        process.exit(0);
-      }, 1000);
-    });
-
-    process.on('SIGTERM', () => {
-      tunnel.kill('SIGTERM');
-      setTimeout(() => {
-        tunnel.kill('SIGKILL');
-        process.exit(0);
-      }, 1000);
-    });
-
-    // Give it a moment to start
-    setTimeout(() => {
-      console.log(chalk.green('[OK]'), 'Tunnel established!');
-      console.log(chalk.cyan('[->]'), `Local endpoint: localhost:${localPort}`);
-      console.log(chalk.cyan('[->]'), 'Press Ctrl+C to close tunnel');
-      console.log();
-    }, 2000);
+  const agent = new RemoteTerminalAgent({
+    connectUrl: terminal.agentConnectUrl,
+    agentToken: terminal.agentToken,
+    slug: terminal.slug,
+    cwd: process.cwd(),
+    onClose: (error) => {
+      console.error();
+      console.error(chalk.red('[ERROR]'), error.message);
+      shutdown('Remote terminal disconnected...');
+    },
+    onTerminalExit: () => shutdown('Login shell exited; stopping remote terminal...'),
   });
+
+  try {
+    await agent.start();
+  } catch (error) {
+    agent.close();
+    throw error;
+  }
+  console.log(chalk.green('[OK]'), 'Remote terminal is ready in your API Frenzy dashboard.');
+  console.log(chalk.cyan('[->]'), 'The shell runs as your current OS user. Press Ctrl+C here to stop it.');
+
+  process.on('SIGINT', () => shutdown());
+  process.on('SIGTERM', () => shutdown());
+}
+
+async function startPrivateConnection(deployment, options) {
+  const config = readConfig();
+  const apiClient = new ApiClient({ apiBaseUrl: options.apiBaseUrl, sessionToken: options.sessionToken });
+  if (!apiClient.hasSessionToken()) throw new Error(`No session token found. Run af-cli login. Config path: ${configPath()}`);
+
+  console.log(chalk.green('[OK]'), `Authorizing private connection to ${deployment}...`);
+  const authorization = await apiClient.createPrivateConnectionTicket(deployment);
+  if (!authorization.ticket || !authorization.gateway_connect_url) throw new Error('API did not return a private connection credential');
+  const suggestedPort = authorization.profile?.local_port || authorization.profile?.port;
+  if (!options.localPort && !suggestedPort) {
+    throw new Error('API did not return a default local port for this private connection');
+  }
+  const localPort = parsePort(options.localPort || suggestedPort);
+  const bridge = new PrivateTcpConnection({ localPort, gatewayUrl: authorization.gateway_connect_url, ticket: authorization.ticket,
+    onError: (error) => console.error(chalk.red('[ERROR]'), `Connection failed: ${error.message}`) });
+  await bridge.start();
+  console.log(chalk.green('[OK]'), `Private TCP connection listening on 127.0.0.1:${localPort}`);
+  console.log(chalk.cyan('[->]'), 'Use your native client against localhost. Press Ctrl+C to stop.');
+  let stopping = false;
+  const stop = async () => { if (!stopping) { stopping = true; await bridge.close(); process.exit(0); } };
+  process.on('SIGINT', stop);
+  process.on('SIGTERM', stop);
 }
 
 module.exports = { tunnelCommand };
