@@ -1,29 +1,30 @@
 {
   "name": "@api-frenzy/cli",
-  "version": "0.1.0",
+  "version": "1.1.0",
   "description": "Command-line interface for the API Frenzy platform",
   "main": "index.js",
   "bin": {
-    "af-cli": "./bin/af-cli.js"
+    "af-cli": "bin/af-cli.js"
   },
   "scripts": {
     "build": "npm run build:prod",
     "build:local": "node scripts/build-profile.js local",
     "build:prod": "node scripts/build-profile.js prod",
     "profile": "node bin/af-cli.js profile",
-    "test": "node --check bin/af-cli.js && node --check commands/login.js && node --check commands/logout.js && node --check commands/profile.js && node --check commands/tunnel.js && node --check commands/version.js && node --check lib/api-client.js && node --check lib/build-profile.js && node --check lib/config.js && node --check lib/profiles.js && node --check lib/tunnel-agent.js && node --check lib/tunnel-dashboard.js && node --check scripts/build-profile.js"
+    "postinstall": "node scripts/ensure-node-pty-helper.js",
+    "test": "node --check bin/af-cli.js && node --check commands/login.js && node --check commands/logout.js && node --check commands/profile.js && node --check commands/tunnel.js && node --check commands/version.js && node --check lib/api-client.js && node --check lib/build-profile.js && node --check lib/config.js && node --check lib/profiles.js && node --check lib/private-tcp-connection.js && node --check lib/remote-terminal-agent.js && node --check lib/tunnel-agent.js && node --check lib/tunnel-dashboard.js && node --check scripts/build-profile.js"
   },
   "keywords": [
     "api-frenzy",
     "cli",
-    "tunnel",
-    "wstunnel"
+    "tunnel"
   ],
   "author": "API Frenzy",
   "license": "BSD-3-Clause",
   "dependencies": {
     "chalk": "^4.1.2",
     "commander": "^11.1.0",
+    "node-pty": "^1.1.0",
     "ws": "^8.17.1"
   },
   "engines": {
@@ -31,7 +32,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/api-frenzy/af-cli.git"
+    "url": "git+https://github.com/api-frenzy/af-cli.git"
   },
   "bugs": {
     "url": "https://github.com/api-frenzy/af-cli/issues"

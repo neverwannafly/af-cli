@@ -91,20 +91,29 @@ function createCallbackServer(expectedState) {
       const state = url.searchParams.get('state');
 
       if (error) {
-        res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.writeHead(400, {
+          'Content-Type': 'text/html; charset=utf-8',
+          Connection: 'close',
+        });
         res.end('<h1>API Frenzy CLI login failed</h1><p>You can close this window.</p>');
         server.emit('oauth-result', { error: new Error(`OAuth authorization failed: ${error}`) });
         return;
       }
 
       if (!code || state !== expectedState) {
-        res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.writeHead(400, {
+          'Content-Type': 'text/html; charset=utf-8',
+          Connection: 'close',
+        });
         res.end('<h1>API Frenzy CLI login failed</h1><p>Invalid OAuth callback.</p>');
         server.emit('oauth-result', { error: new Error('Invalid OAuth callback') });
         return;
       }
 
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        Connection: 'close',
+      });
       res.end('<h1>API Frenzy CLI login complete</h1><p>You can close this window and return to your terminal.</p>');
       server.emit('oauth-result', { code });
     });
@@ -189,6 +198,29 @@ async function exchangeCode(tokenEndpoint, { code, clientId, redirectUri, verifi
   return `${payload.token_type || 'Bearer'} ${payload.access_token}`;
 }
 
+async function fetchUsername(baseUrl, sessionToken) {
+  try {
+    const response = await fetch(`${baseUrl}/api/oauth2/me`, {
+      headers: { Authorization: sessionToken },
+    });
+
+    if (!response.ok) return null;
+
+    const payload = await readJsonResponse(response);
+    return payload?.data?.attributes?.username || payload?.username || null;
+  } catch {
+    // Login succeeded already; a best-effort greeting must not make it fail.
+    return null;
+  }
+}
+
+function closeCallbackServer(server) {
+  server.close();
+  // `server.close()` waits for keep-alive sockets. Explicitly close them so a
+  // completed browser callback never keeps the CLI process alive.
+  server.closeAllConnections?.();
+}
+
 async function oauthLogin({ apiBaseUrl, timeout }) {
   const config = readConfig();
   const baseUrl = normalizeBaseUrl(apiBaseUrl || config.apiBaseUrl);
@@ -227,9 +259,9 @@ async function oauthLogin({ apiBaseUrl, timeout }) {
       sessionToken,
     });
 
-    return { baseUrl };
+    return { baseUrl, username: await fetchUsername(baseUrl, sessionToken) };
   } finally {
-    server.close();
+    closeCallbackServer(server);
   }
 }
 
@@ -243,8 +275,9 @@ function loginCommand(program) {
       oauthLogin({
         apiBaseUrl: options.apiBaseUrl,
         timeout: Number.parseInt(options.timeoutMs, 10) || 300000,
-      }).then(({ baseUrl }) => {
+      }).then(({ baseUrl, username }) => {
         console.log(chalk.green('[OK]'), 'OAuth login complete');
+        if (username) console.log(`Welcome ${username}!`);
         console.log(`API base URL: ${baseUrl}`);
         console.log(`Config: ${configPath()}`);
       }).catch((error) => {
@@ -254,4 +287,4 @@ function loginCommand(program) {
     });
 }
 
-module.exports = { loginCommand, oauthLogin };
+module.exports = { loginCommand, oauthLogin, fetchUsername };

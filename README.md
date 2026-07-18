@@ -27,7 +27,6 @@ Use the Node version in `.nvmrc`.
 nvm use
 ```
 
-The deprecated legacy tunnel flow still requires `wstunnel`.
 
 ## Commands
 
@@ -111,6 +110,16 @@ AF_SESSION_TOKEN="Bearer ..." af-cli tunnel http 3000 --name my-app
 
 The tunnel will run until you press Ctrl+C. While it is running, the CLI displays a live in-memory dashboard refreshed every 2 seconds with request count, errors, p50/p95/p99 latency, bytes in/out, a small throughput graph, and the last 100 HTTP/WebSocket events in a table. These logs are process-local and are not written to backend storage.
 
+### Remote Terminal
+
+Open a private browser terminal to the machine running the CLI:
+
+```bash
+af-cli tunnel remote --name my-laptop
+```
+
+Open the resulting Remote Terminal from the API Frenzy dashboard. It starts your normal login shell in the current directory, as the same OS user that ran the command. Interactive programs such as `tmux`, `vim`, and Codex are supported. Closing or refreshing the browser detaches it without stopping the shell; pressing Ctrl+C in the CLI stops the remote terminal and its shell. Terminal input and output are never written by the CLI's tunnel dashboard.
+
 ### Profile
 
 Show the active build profile and API base URL.
@@ -119,40 +128,19 @@ Show the active build profile and API base URL.
 af-cli profile
 ```
 
-### Legacy Tunnel
+### Private TCP connection
 
-Start a legacy tunnel using `wstunnel`.
-
-```bash
-af-cli tunnel connect <url> [options]
-```
-
-The old command shape still works but is deprecated:
+Expose a template-declared service on loopback for any native TCP client. This does not create a public endpoint or consume tunnel quota.
 
 ```bash
-af-cli tunnel <url> [options]
+af-cli tunnel connect my-postgres
+psql -h 127.0.0.1 -p 5432
+
+af-cli tunnel connect cache
+redis-cli -h 127.0.0.1 -p 6379
 ```
 
-**Required:**
-- `<url>` - WebSocket server URL (http://, https://, ws://, or wss://)
-
-**Options:**
-- `-l, --local-port <port>` - Local port to bind to (default: 5432)
-- `--remote-host <host>` - Remote host (default: localhost)
-- `--remote-port <port>` - Remote port (default: 5432)
-
-**Examples:**
-
-```bash
-# Basic tunnel
-af-cli tunnel connect http://tunnel.example.com:8000
-
-# Custom local port
-af-cli tunnel connect http://tunnel.example.com:8000 -l 5433
-
-# Custom remote target
-af-cli tunnel connect http://tunnel.example.com:8000 --remote-host db.internal --remote-port 3306
-```
+The deployment template selects the private TCP service and usual local port. Use `--local-port <port>` only to override a busy local port. The CLI never accepts an arbitrary internal host or port.
 
 ## Project Structure
 
