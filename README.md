@@ -108,7 +108,7 @@ Example:
 AF_SESSION_TOKEN="Bearer ..." af-cli tunnel http 3000 --name my-app
 ```
 
-The tunnel will run until you press Ctrl+C. While it is running, the CLI displays a live in-memory dashboard refreshed every 2 seconds with request count, errors, p50/p95/p99 latency, bytes in/out, a small throughput graph, and the last 100 HTTP/WebSocket events in a table. These logs are process-local and are not written to backend storage.
+The tunnel will run until you press Ctrl+C. If the agent's gateway WebSocket disconnects, the CLI reconnects automatically with capped exponential backoff (up to 30 seconds between attempts) using the same tunnel token. While it is running, the CLI displays a live in-memory dashboard refreshed every 2 seconds with request count, errors, p50/p95/p99 latency, bytes in/out, a small throughput graph, and the last 100 HTTP/WebSocket events in a table. These logs are process-local and are not written to backend storage.
 
 ### Remote Terminal
 

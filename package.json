@@ -13,7 +13,7 @@
     "release": "bash scripts/publish.sh",
     "profile": "node bin/af-cli.js profile",
     "postinstall": "node scripts/ensure-node-pty-helper.js",
-    "test": "node --check bin/af-cli.js && node --check commands/login.js && node --check commands/logout.js && node --check commands/profile.js && node --check commands/tunnel.js && node --check commands/version.js && node --check lib/api-client.js && node --check lib/build-profile.js && node --check lib/config.js && node --check lib/profiles.js && node --check lib/private-tcp-connection.js && node --check lib/remote-terminal-agent.js && node --check lib/tunnel-agent.js && node --check lib/tunnel-dashboard.js && node --check scripts/build-profile.js"
+    "test": "node --check bin/af-cli.js && node --check commands/login.js && node --check commands/logout.js && node --check commands/profile.js && node --check commands/tunnel.js && node --check commands/version.js && node --check lib/api-client.js && node --check lib/build-profile.js && node --check lib/config.js && node --check lib/profiles.js && node --check lib/private-tcp-connection.js && node --check lib/remote-terminal-agent.js && node --check lib/tunnel-agent.js && node --check lib/tunnel-dashboard.js && node --check lib/tunnel-reconnector.js && node --check scripts/build-profile.js && node --test test/*.test.js"
   },
   "keywords": [
     "api-frenzy",

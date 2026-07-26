@@ -3,6 +3,7 @@ const { ApiClient } = require('../lib/api-client');
 const { DEFAULT_TUNNEL_VISIBILITY, configPath, readConfig } = require('../lib/config');
 const { TunnelAgent } = require('../lib/tunnel-agent');
 const { TunnelDashboard } = require('../lib/tunnel-dashboard');
+const { TunnelReconnector } = require('../lib/tunnel-reconnector');
 const { RemoteTerminalAgent } = require('../lib/remote-terminal-agent');
 const { PrivateTcpConnection } = require('../lib/private-tcp-connection');
 
@@ -95,24 +96,35 @@ async function startHttpTunnel(port, options) {
     publicUrl: tunnelData.publicUrl || tunnelData.slug,
     localPort,
   });
-  const agent = new TunnelAgent({
-    connectUrl: tunnelData.agentConnectUrl,
-    agentToken: tunnelData.agentToken,
-    slug: tunnelData.slug,
-    hostname: tunnelData.hostname,
-    localPort,
-    onClose: (error) => {
-      dashboard.stop();
-      console.error();
-      console.error(chalk.red('[ERROR]'), error.message);
-      process.exit(1);
+  dashboard.start();
+  const reconnector = new TunnelReconnector({
+    createAgent: ({ onClose }) => new TunnelAgent({
+      connectUrl: tunnelData.agentConnectUrl,
+      agentToken: tunnelData.agentToken,
+      slug: tunnelData.slug,
+      hostname: tunnelData.hostname,
+      localPort,
+      onClose,
+      onLog: (entry) => dashboard.add(entry),
+    }),
+    onStatus: ({ state, attempt, delayMs, error }) => {
+      if (state === 'connected') return;
+
+      const message = state === 'reconnected'
+        ? 'Tunnel reconnected.'
+        : `Tunnel disconnected (${error?.message || 'unknown error'}). Retrying in ${Math.ceil(delayMs / 1000)}s (attempt ${attempt})...`;
+      dashboard.add({
+        type: 'SYS',
+        method: state === 'reconnected' ? 'READY' : 'RETRY',
+        path: '/',
+        status: state === 'reconnected' ? 200 : 503,
+        note: message,
+      });
+      if (!process.stdout.isTTY) console.log(chalk.yellow('[!]'), message);
     },
-    onLog: (entry) => dashboard.add(entry),
   });
 
-  await agent.start();
-
-  dashboard.start();
+  await reconnector.start();
 
   let shuttingDown = false;
   const shutdown = async () => {
@@ -124,7 +136,7 @@ async function startHttpTunnel(port, options) {
     console.log();
     console.log(chalk.yellow('[!]'), 'Stopping tunnel...');
     dashboard.stop();
-    agent.close();
+    reconnector.stop();
 
     try {
       await apiClient.disconnectTunnel(tunnelData.slug);
