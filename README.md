@@ -13,7 +13,7 @@ npm install -g @api-frenzy/cli
 ### From Source
 
 ```bash
-git clone https://github.com/api-frenzy/af-cli.git
+git clone https://github.com/neverwannafly/af-cli.git
 cd af-cli
 npm install
 npm link
@@ -96,6 +96,7 @@ Supported config:
 
 Environment overrides:
 
+- `AF_API_URL` and `AF_TOKEN` (recommended for CI; never persisted)
 - `AF_API_BASE_URL` or `API_FRENZY_API_BASE_URL`
 - `AF_SESSION_TOKEN` or `API_FRENZY_SESSION_TOKEN`
 - `AF_DEFAULT_TUNNEL_VISIBILITY`
@@ -107,6 +108,62 @@ Example:
 ```bash
 AF_SESSION_TOKEN="Bearer ..." af-cli tunnel http 3000 --name my-app
 ```
+
+### Deploy and verify
+
+Deploy an existing image or a GitHub repository. Without `--wait`, success means the pipeline was accepted. With `--wait`, the CLI polls the pipeline and then trusts the durable server verification verdict; it never infers health from elapsed time.
+
+```bash
+af-cli deploy --image nginx:alpine --name web -o json
+af-cli deploy --image nginx:alpine --name web --wait --timeout 10m
+
+af-cli deploy --repo octocat/hello --installation-id 300 --branch main \
+  --build-type node --start-command "node server.js" --port 3000 \
+  --name api --wait
+```
+
+Plain environment variables can be repeated with `--env KEY=VALUE` or loaded with `--env-file`. Attach existing secrets by id with repeated `--secret-id`; the CLI does not accept secret values on deploy.
+
+### Observe and recover
+
+```bash
+af-cli status web-1234abcd -o json
+af-cli logs web-1234abcd --tail 200 -o json
+af-cli logs web-1234abcd --follow       # NDJSON stream
+af-cli logs build 4412 --tail-bytes 65536 -o json
+af-cli releases web-1234abcd -o json
+af-cli releases web-1234abcd --sequence 11 -o json
+af-cli rollback web-1234abcd 11 --wait --timeout 10m --yes -o json
+af-cli doctor -o json
+af-cli list deployments -o json
+af-cli list github-repos --installation-id 300 -o json
+```
+
+Rollback creates a new forward release. It restores historical configuration using current secret values, and does not restore PVC size or volume contents.
+
+### Machine-readable contract
+
+All finite commands accept `-o table|json|yaml` (table is the default). JSON mode writes exactly one stable-key-order document to stdout; YAML uses the JSON-compatible YAML 1.2 subset. Progress and diagnostics are stderr. `logs --follow` rejects YAML and writes one JSON object per line (NDJSON). Every result carries `output_version: 1`.
+
+CI credentials are process-only:
+
+```bash
+AF_API_URL=https://apifrenzy.com AF_TOKEN="$API_FRENZY_TOKEN" \
+  af-cli deploy --image ghcr.io/acme/app:sha-123 --name app --wait -o json
+```
+
+| Exit | Meaning |
+|---:|---|
+| 0 | success, including positive verification when waiting |
+| 1 | general, transport, or upstream failure |
+| 2 | authentication or authorization failure |
+| 3 | resource not found |
+| 4 | invalid arguments or rejected validation |
+| 5 | state or naming conflict |
+| 6 | quota/account activation decision required |
+| 7 | build or deployment verification failed |
+| 8 | wait timed out; outcome is inconclusive |
+| 130 | interrupted or confirmation unavailable/declined |
 
 The tunnel will run until you press Ctrl+C. If the agent's gateway WebSocket disconnects, the CLI reconnects automatically with capped exponential backoff (up to 30 seconds between attempts) using the same tunnel token. While it is running, the CLI displays a live in-memory dashboard refreshed every 2 seconds with request count, errors, p50/p95/p99 latency, bytes in/out, a small throughput graph, and the last 100 HTTP/WebSocket events in a table. These logs are process-local and are not written to backend storage.
 

@@ -1,8 +1,8 @@
 const http = require('http');
 const { spawn } = require('child_process');
 const { createHash, randomBytes } = require('crypto');
-const chalk = require('chalk');
 const { configPath, readConfig, updateConfig } = require('../lib/config');
+const output = require('../lib/output');
 
 const CALLBACK_HOST = '127.0.0.1';
 const CLIENT_NAME = 'API Frenzy CLI';
@@ -240,10 +240,10 @@ async function oauthLogin({ apiBaseUrl, timeout }) {
     authorizeUrl.searchParams.set('code_challenge_method', 'S256');
     authorizeUrl.searchParams.set('state', state);
 
-    console.log(chalk.cyan('[->]'), 'Opening browser for API Frenzy OAuth login...');
+    output.note('Opening browser for API Frenzy OAuth login...');
     if (!openBrowser(authorizeUrl.toString())) {
-      console.log('Open this URL in your browser:');
-      console.log(authorizeUrl.toString());
+      output.note('Open this URL in your browser:');
+      output.note(authorizeUrl.toString());
     }
 
     const code = await waitForCallback(server, timeout);
@@ -271,19 +271,12 @@ function loginCommand(program) {
     .description('Log in to API Frenzy with OAuth 2.0 PKCE')
     .option('--api-base-url <url>', 'API Frenzy API base URL')
     .option('--timeout-ms <ms>', 'OAuth callback timeout in milliseconds', '300000')
-    .action((options) => {
-      oauthLogin({
+    .action(async (options) => {
+      const { baseUrl, username } = await oauthLogin({
         apiBaseUrl: options.apiBaseUrl,
         timeout: Number.parseInt(options.timeoutMs, 10) || 300000,
-      }).then(({ baseUrl, username }) => {
-        console.log(chalk.green('[OK]'), 'OAuth login complete');
-        if (username) console.log(`Welcome ${username}!`);
-        console.log(`API base URL: ${baseUrl}`);
-        console.log(`Config: ${configPath()}`);
-      }).catch((error) => {
-        console.error(chalk.red('[ERROR]'), error.message);
-        process.exit(1);
       });
+      output.emit({ authenticated: true, username, api_url: baseUrl, config: configPath() });
     });
 }
 

@@ -1,5 +1,5 @@
-const chalk = require('chalk');
 const { readConfig } = require('../lib/config');
+const output = require('../lib/output');
 
 function profileCommand(program) {
   program
@@ -8,8 +8,7 @@ function profileCommand(program) {
     .action(() => {
       const config = readConfig();
 
-      console.log(chalk.green('[OK]'), `Profile: ${config.profile.name}`);
-      console.log(`API base URL: ${config.apiBaseUrl}`);
+      output.emit({ profile: config.profile.name, api_url: config.apiBaseUrl });
     });
 }
 

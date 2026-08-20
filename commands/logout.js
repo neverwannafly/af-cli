@@ -1,5 +1,5 @@
-const chalk = require('chalk');
 const { clearSessionToken, configPath } = require('../lib/config');
+const output = require('../lib/output');
 
 function logoutCommand(program) {
   program
@@ -7,8 +7,7 @@ function logoutCommand(program) {
     .description('Remove the stored API Frenzy session token')
     .action(() => {
       clearSessionToken();
-      console.log(chalk.green('[OK]'), 'Logged out');
-      console.log(`Config: ${configPath()}`);
+      output.emit({ logged_out: true, config: configPath() });
     });
 }
 

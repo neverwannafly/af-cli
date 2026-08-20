@@ -3,6 +3,14 @@
   "version": "1.1.2",
   "description": "Command-line interface for the API Frenzy platform",
   "main": "index.js",
+  "files": [
+    "bin/af-cli.js",
+    "commands/",
+    "lib/",
+    "scripts/ensure-node-pty-helper.js",
+    "README.md",
+    "LICENSE"
+  ],
   "bin": {
     "af-cli": "bin/af-cli.js"
   },
@@ -13,7 +21,8 @@
     "release": "bash scripts/publish.sh",
     "profile": "node bin/af-cli.js profile",
     "postinstall": "node scripts/ensure-node-pty-helper.js",
-    "test": "node --check bin/af-cli.js && node --check commands/login.js && node --check commands/logout.js && node --check commands/profile.js && node --check commands/tunnel.js && node --check commands/version.js && node --check lib/api-client.js && node --check lib/build-profile.js && node --check lib/config.js && node --check lib/profiles.js && node --check lib/private-tcp-connection.js && node --check lib/remote-terminal-agent.js && node --check lib/tunnel-agent.js && node --check lib/tunnel-dashboard.js && node --check lib/tunnel-reconnector.js && node --check scripts/build-profile.js && node --test test/*.test.js"
+    "lint:stdout": "node scripts/lint-stdout.js",
+    "test": "node scripts/lint-stdout.js && node --check bin/af-cli.js && node --check commands/deploy.js && node --check commands/doctor.js && node --check commands/list.js && node --check commands/login.js && node --check commands/logout.js && node --check commands/logs.js && node --check commands/profile.js && node --check commands/releases.js && node --check commands/rollback.js && node --check commands/status.js && node --check commands/tunnel.js && node --check commands/version.js && node --check lib/api-client.js && node --check lib/command-utils.js && node --check lib/errors.js && node --check lib/exit-codes.js && node --check lib/output.js && node --check lib/build-profile.js && node --check lib/config.js && node --check lib/profiles.js && node --check lib/private-tcp-connection.js && node --check lib/remote-terminal-agent.js && node --check lib/tunnel-agent.js && node --check lib/tunnel-dashboard.js && node --check lib/tunnel-reconnector.js && node --check scripts/build-profile.js && node --check scripts/lint-stdout.js && node --test test/*.test.js"
   },
   "keywords": [
     "api-frenzy",
@@ -33,10 +42,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/api-frenzy/af-cli.git"
+    "url": "git+https://github.com/neverwannafly/af-cli.git"
   },
   "bugs": {
-    "url": "https://github.com/api-frenzy/af-cli/issues"
+    "url": "https://github.com/neverwannafly/af-cli/issues"
   },
-  "homepage": "https://github.com/api-frenzy/af-cli#readme"
+  "homepage": "https://github.com/neverwannafly/af-cli#readme"
 }

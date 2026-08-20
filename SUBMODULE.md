@@ -7,7 +7,7 @@ This repository is designed to be used as a git submodule in the main API Frenzy
 From the main API Frenzy repository:
 
 ```bash
-git submodule add https://github.com/api-frenzy/af-cli.git cli
+git submodule add git@github.com:neverwannafly/af-cli.git af-cli
 git submodule update --init --recursive
 ```
 
@@ -16,10 +16,10 @@ git submodule update --init --recursive
 To update the CLI to the latest version:
 
 ```bash
-cd cli
+cd af-cli
 git pull origin main
 cd ..
-git add cli
+git add af-cli
 git commit -m "Update CLI submodule"
 ```
 
@@ -29,7 +29,7 @@ When working on the CLI:
 
 1. Make changes in the submodule directory:
 ```bash
-cd cli
+cd af-cli
 git checkout -b feature/your-feature
 # Make your changes
 npm install  # Install dependencies
@@ -43,11 +43,11 @@ git push origin feature/your-feature
 
 3. After merging, update the submodule reference in the main repo:
 ```bash
-cd cli
+cd af-cli
 git checkout main
 git pull
 cd ..
-git add cli
+git add af-cli
 git commit -m "Update CLI submodule to latest"
 ```
 

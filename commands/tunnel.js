@@ -1,4 +1,3 @@
-const chalk = require('chalk');
 const { ApiClient } = require('../lib/api-client');
 const { DEFAULT_TUNNEL_VISIBILITY, configPath, readConfig } = require('../lib/config');
 const { TunnelAgent } = require('../lib/tunnel-agent');
@@ -6,6 +5,14 @@ const { TunnelDashboard } = require('../lib/tunnel-dashboard');
 const { TunnelReconnector } = require('../lib/tunnel-reconnector');
 const { RemoteTerminalAgent } = require('../lib/remote-terminal-agent');
 const { PrivateTcpConnection } = require('../lib/private-tcp-connection');
+const output = require('../lib/output');
+const { AfError } = require('../lib/errors');
+
+function requireInteractiveOutput() {
+  if (output.currentFormat() !== 'table') {
+    throw new AfError('Tunnel commands are interactive and require table output', { code: 'validation_failed' });
+  }
+}
 
 function tunnelCommand(program) {
   const tunnel = program.command('tunnel').description('Manage tunnels').action((_options, command) => command.help());
@@ -17,11 +24,9 @@ function tunnelCommand(program) {
     .option('--api-base-url <url>', 'API Frenzy API base URL')
     .option('--session-token <token>', 'API Frenzy session token')
     .option('--visibility <visibility>', 'Tunnel visibility')
-    .action((port, options) => {
-      startHttpTunnel(port, options).catch((error) => {
-        console.error(chalk.red('[ERROR]'), error.message);
-        process.exit(1);
-      });
+    .action(async (port, options) => {
+      requireInteractiveOutput();
+      await startHttpTunnel(port, options);
     });
 
   tunnel
@@ -30,11 +35,9 @@ function tunnelCommand(program) {
     .requiredOption('--name <name>', 'Remote terminal name')
     .option('--api-base-url <url>', 'API Frenzy API base URL')
     .option('--session-token <token>', 'API Frenzy session token')
-    .action((options) => {
-      startRemoteTerminal(options).catch((error) => {
-        console.error(chalk.red('[ERROR]'), error.message);
-        process.exit(1);
-      });
+    .action(async (options) => {
+      requireInteractiveOutput();
+      await startRemoteTerminal(options);
     });
 
   tunnel.command('connect <deployment>')
@@ -43,10 +46,10 @@ function tunnelCommand(program) {
     .option('--local-port <port>', 'Loopback port override for your native client')
     .option('--api-base-url <url>', 'API Frenzy API base URL')
     .option('--session-token <token>', 'API Frenzy session token')
-    .action((deployment, options) => startPrivateConnection(deployment, options).catch((error) => {
-      console.error(chalk.red('[ERROR]'), error.message);
-      process.exit(1);
-    }));
+    .action(async (deployment, options) => {
+      requireInteractiveOutput();
+      await startPrivateConnection(deployment, options);
+    });
 }
 
 function parsePort(port) {
@@ -80,7 +83,7 @@ async function startHttpTunnel(port, options) {
     throw new Error(`No session token found. Run af-cli login when available, or set AF_SESSION_TOKEN. Config path: ${configPath()}`);
   }
 
-  console.log(chalk.green('[OK]'), 'Creating tunnel...');
+  output.note('Creating tunnel...');
 
   const tunnelData = normalizeTunnelData(await apiClient.createTunnel({
     name: options.name,
@@ -120,7 +123,7 @@ async function startHttpTunnel(port, options) {
         status: state === 'reconnected' ? 200 : 503,
         note: message,
       });
-      if (!process.stdout.isTTY) console.log(chalk.yellow('[!]'), message);
+      if (!process.stdout.isTTY) output.note(message);
     },
   });
 
@@ -133,15 +136,15 @@ async function startHttpTunnel(port, options) {
     }
     shuttingDown = true;
 
-    console.log();
-    console.log(chalk.yellow('[!]'), 'Stopping tunnel...');
+    output.note('');
+    output.note('Stopping tunnel...');
     dashboard.stop();
     reconnector.stop();
 
     try {
       await apiClient.disconnectTunnel(tunnelData.slug);
     } catch (error) {
-      console.error(chalk.yellow('[WARN]'), error.message);
+      output.warn(error.message);
     }
 
     process.exit(0);
@@ -166,7 +169,7 @@ async function startRemoteTerminal(options) {
     throw new Error(`No session token found. Run af-cli login when available, or set AF_SESSION_TOKEN. Config path: ${configPath()}`);
   }
 
-  console.log(chalk.green('[OK]'), 'Creating remote terminal tunnel...');
+  output.note('Creating remote terminal tunnel...');
   const terminal = normalizeRemoteTerminalData(await apiClient.createTunnel({
     name: options.name,
     kind: 'remote_terminal',
@@ -179,8 +182,8 @@ async function startRemoteTerminal(options) {
   const shutdown = async (message = 'Stopping remote terminal...') => {
     if (shuttingDown) return;
     shuttingDown = true;
-    console.log();
-    console.log(chalk.yellow('[!]'), message);
+    output.note('');
+    output.note(message);
     agent.close();
     process.exit(0);
   };
@@ -191,8 +194,8 @@ async function startRemoteTerminal(options) {
     slug: terminal.slug,
     cwd: process.cwd(),
     onClose: (error) => {
-      console.error();
-      console.error(chalk.red('[ERROR]'), error.message);
+      output.note('');
+      output.warn(error.message);
       shutdown('Remote terminal disconnected...');
     },
     onTerminalExit: () => shutdown('Login shell exited; stopping remote terminal...'),
@@ -204,8 +207,8 @@ async function startRemoteTerminal(options) {
     agent.close();
     throw error;
   }
-  console.log(chalk.green('[OK]'), 'Remote terminal is ready in your API Frenzy dashboard.');
-  console.log(chalk.cyan('[->]'), 'The shell runs as your current OS user. Press Ctrl+C here to stop it.');
+  output.note('Remote terminal is ready in your API Frenzy dashboard.');
+  output.note('The shell runs as your current OS user. Press Ctrl+C here to stop it.');
 
   process.on('SIGINT', () => shutdown());
   process.on('SIGTERM', () => shutdown());
@@ -216,7 +219,7 @@ async function startPrivateConnection(deployment, options) {
   const apiClient = new ApiClient({ apiBaseUrl: options.apiBaseUrl, sessionToken: options.sessionToken });
   if (!apiClient.hasSessionToken()) throw new Error(`No session token found. Run af-cli login. Config path: ${configPath()}`);
 
-  console.log(chalk.green('[OK]'), `Authorizing private connection to ${deployment}...`);
+  output.note(`Authorizing private connection to ${deployment}...`);
   const authorization = await apiClient.createPrivateConnectionTicket(deployment);
   if (!authorization.ticket || !authorization.gateway_connect_url) throw new Error('API did not return a private connection credential');
   const suggestedPort = authorization.profile?.local_port || authorization.profile?.port;
@@ -225,10 +228,10 @@ async function startPrivateConnection(deployment, options) {
   }
   const localPort = parsePort(options.localPort || suggestedPort);
   const bridge = new PrivateTcpConnection({ localPort, gatewayUrl: authorization.gateway_connect_url, ticket: authorization.ticket,
-    onError: (error) => console.error(chalk.red('[ERROR]'), `Connection failed: ${error.message}`) });
+    onError: (error) => output.warn(`Connection failed: ${error.message}`) });
   await bridge.start();
-  console.log(chalk.green('[OK]'), `Private TCP connection listening on 127.0.0.1:${localPort}`);
-  console.log(chalk.cyan('[->]'), 'Use your native client against localhost. Press Ctrl+C to stop.');
+  output.note(`Private TCP connection listening on 127.0.0.1:${localPort}`);
+  output.note('Use your native client against localhost. Press Ctrl+C to stop.');
   let stopping = false;
   const stop = async () => { if (!stopping) { stopping = true; await bridge.close(); process.exit(0); } };
   process.on('SIGINT', stop);
