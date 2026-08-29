@@ -3,7 +3,7 @@ const { DEFAULT_TUNNEL_VISIBILITY, configPath, readConfig } = require('../lib/co
 const { TunnelAgent } = require('../lib/tunnel-agent');
 const { TunnelDashboard } = require('../lib/tunnel-dashboard');
 const { TunnelReconnector } = require('../lib/tunnel-reconnector');
-const { RemoteTerminalAgent } = require('../lib/remote-terminal-agent');
+const { RemoteTerminalAgent, RemoteTerminalConnection } = require('../lib/remote-terminal-agent');
 const { PrivateTcpConnection } = require('../lib/private-tcp-connection');
 const output = require('../lib/output');
 const { AfError } = require('../lib/errors');
@@ -179,34 +179,52 @@ async function startRemoteTerminal(options) {
   }
 
   let shuttingDown = false;
+  let reconnector;
   const shutdown = async (message = 'Stopping remote terminal...') => {
     if (shuttingDown) return;
     shuttingDown = true;
     output.note('');
     output.note(message);
-    agent.close();
+    if (reconnector) reconnector.stop();
+    if (agent) agent.close();
     process.exit(0);
   };
 
   const agent = new RemoteTerminalAgent({
-    connectUrl: terminal.agentConnectUrl,
-    agentToken: terminal.agentToken,
-    slug: terminal.slug,
     cwd: process.cwd(),
-    onClose: (error) => {
-      output.note('');
-      output.warn(error.message);
-      shutdown('Remote terminal disconnected...');
-    },
     onTerminalExit: () => shutdown('Login shell exited; stopping remote terminal...'),
   });
 
+  agent.start();
+
+  reconnector = new TunnelReconnector({
+    createAgent: ({ onClose }) => {
+      const connection = new RemoteTerminalConnection({
+        connectUrl: terminal.agentConnectUrl,
+        agentToken: terminal.agentToken,
+        slug: terminal.slug,
+        onMessage: (data) => agent.handleMessage(data),
+        onClose: onClose
+      });
+      agent.bindConnection(connection);
+      return connection;
+    },
+    onStatus: ({ state, attempt, delayMs, error }) => {
+      if (state === 'connected') return;
+      const message = state === 'reconnected'
+        ? 'Tunnel reconnected.'
+        : `Tunnel disconnected (${error?.message || 'unknown error'}). Retrying in ${Math.ceil(delayMs / 1000)}s (attempt ${attempt})...`;
+      output.note(message);
+    }
+  });
+
   try {
-    await agent.start();
+    await reconnector.start();
   } catch (error) {
     agent.close();
     throw error;
   }
+  
   output.note('Remote terminal is ready in your API Frenzy dashboard.');
   output.note('The shell runs as your current OS user. Press Ctrl+C here to stop it.');
 

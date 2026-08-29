@@ -253,10 +253,34 @@ async function oauthLogin({ apiBaseUrl, timeout }) {
       redirectUri,
       verifier,
     });
+    
+    let finalToken = sessionToken;
+    try {
+      const os = require('os');
+      const tokenResponse = await fetch(`${baseUrl}/api/tokens`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: sessionToken,
+        },
+        body: JSON.stringify({ 
+          name: `CLI Login on ${os.hostname()}`,
+          scopes: ['*:*']
+        }),
+      });
+      if (tokenResponse.ok) {
+        const tokenPayload = await readJsonResponse(tokenResponse);
+        if (tokenPayload?.secret) {
+          finalToken = tokenPayload.secret;
+        }
+      }
+    } catch (e) {
+      // Ignore error and fallback to standard OAuth token if API token generation fails
+    }
 
     updateConfig({
       apiBaseUrl: baseUrl,
-      sessionToken,
+      sessionToken: finalToken,
     });
 
     return { baseUrl, username: await fetchUsername(baseUrl, sessionToken) };
