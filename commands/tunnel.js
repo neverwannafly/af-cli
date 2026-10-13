@@ -1,5 +1,5 @@
 const { ApiClient } = require('../lib/api-client');
-const { DEFAULT_TUNNEL_VISIBILITY, configPath, readConfig } = require('../lib/config');
+const { configPath, readConfig } = require('../lib/config');
 const { TunnelAgent } = require('../lib/tunnel-agent');
 const { TunnelDashboard } = require('../lib/tunnel-dashboard');
 const { TunnelReconnector } = require('../lib/tunnel-reconnector');
@@ -25,7 +25,7 @@ function tunnelCommand(program) {
     .option('--api-base-url <url>', 'API Frenzy API base URL')
     .option('--session-token <token>', 'API Frenzy session token')
     .option('--no-keep-awake', 'Allow this machine to sleep while the tunnel is open')
-    .option('--visibility <visibility>', 'Tunnel visibility')
+    .option('--visibility <visibility>', 'public_access or private_access (default: keep the existing tunnel setting; new tunnels are public_access)')
     .action(async (port, options) => {
       requireInteractiveOutput();
       keepAwake(options);
@@ -65,6 +65,19 @@ function keepAwake(options) {
   return handle;
 }
 
+const TUNNEL_VISIBILITIES = ['public_access', 'private_access'];
+
+// Returns an explicit visibility (flag, env or config) or undefined so the API
+// keeps an existing tunnel's visibility and only defaults brand new tunnels.
+function resolveTunnelVisibility(options, config) {
+  const value = options.visibility || config.defaultTunnelVisibility;
+  if (value === undefined || value === null || value === '') return undefined;
+  if (!TUNNEL_VISIBILITIES.includes(value)) {
+    throw new AfError(`Invalid tunnel visibility "${value}". Use public_access or private_access`, { code: 'validation_failed' });
+  }
+  return value;
+}
+
 function parsePort(port) {
   const parsed = Number.parseInt(port, 10);
   if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
@@ -87,6 +100,7 @@ function normalizeTunnelData(data) {
 async function startHttpTunnel(port, options) {
   const localPort = parsePort(port);
   const config = readConfig();
+  const visibility = resolveTunnelVisibility(options, config);
   const apiClient = new ApiClient({
     apiBaseUrl: options.apiBaseUrl,
     sessionToken: options.sessionToken,
@@ -101,7 +115,7 @@ async function startHttpTunnel(port, options) {
   const tunnelData = normalizeTunnelData(await apiClient.createTunnel({
     name: options.name,
     localPort,
-    visibility: options.visibility || config.defaultTunnelVisibility || DEFAULT_TUNNEL_VISIBILITY,
+    visibility,
   }));
 
   if (!tunnelData.agentConnectUrl || !tunnelData.agentToken) {
@@ -269,4 +283,4 @@ async function startPrivateConnection(deployment, options) {
   process.on('SIGTERM', stop);
 }
 
-module.exports = { tunnelCommand };
+module.exports = { tunnelCommand, resolveTunnelVisibility };

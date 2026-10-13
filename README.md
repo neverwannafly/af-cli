@@ -103,6 +103,8 @@ Environment overrides:
 - `AF_SESSION_TOKEN` or `API_FRENZY_SESSION_TOKEN`
 - `AF_DEFAULT_TUNNEL_VISIBILITY`
 
+`defaultTunnelVisibility` / `AF_DEFAULT_TUNNEL_VISIBILITY` (`public_access` or `private_access`) are optional. When neither them nor `--visibility` is set, `af-cli tunnel http` does not send a visibility: an existing tunnel keeps its current visibility and a new tunnel is created as `public_access`.
+
 The configured API base URL overrides the build profile default.
 
 Example:
