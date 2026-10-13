@@ -5,6 +5,7 @@ const { TunnelDashboard } = require('../lib/tunnel-dashboard');
 const { TunnelReconnector } = require('../lib/tunnel-reconnector');
 const { RemoteTerminalAgent, RemoteTerminalConnection } = require('../lib/remote-terminal-agent');
 const { PrivateTcpConnection } = require('../lib/private-tcp-connection');
+const { startKeepAwake } = require('../lib/keep-awake');
 const output = require('../lib/output');
 const { AfError } = require('../lib/errors');
 
@@ -23,9 +24,11 @@ function tunnelCommand(program) {
     .requiredOption('--name <name>', 'Tunnel name')
     .option('--api-base-url <url>', 'API Frenzy API base URL')
     .option('--session-token <token>', 'API Frenzy session token')
+    .option('--no-keep-awake', 'Allow this machine to sleep while the tunnel is open')
     .option('--visibility <visibility>', 'Tunnel visibility')
     .action(async (port, options) => {
       requireInteractiveOutput();
+      keepAwake(options);
       await startHttpTunnel(port, options);
     });
 
@@ -35,8 +38,10 @@ function tunnelCommand(program) {
     .requiredOption('--name <name>', 'Remote terminal name')
     .option('--api-base-url <url>', 'API Frenzy API base URL')
     .option('--session-token <token>', 'API Frenzy session token')
+    .option('--no-keep-awake', 'Allow this machine to sleep while the tunnel is open')
     .action(async (options) => {
       requireInteractiveOutput();
+      keepAwake(options);
       await startRemoteTerminal(options);
     });
 
@@ -46,10 +51,18 @@ function tunnelCommand(program) {
     .option('--local-port <port>', 'Loopback port override for your native client')
     .option('--api-base-url <url>', 'API Frenzy API base URL')
     .option('--session-token <token>', 'API Frenzy session token')
+    .option('--no-keep-awake', 'Allow this machine to sleep while the tunnel is open')
     .action(async (deployment, options) => {
       requireInteractiveOutput();
+      keepAwake(options);
       await startPrivateConnection(deployment, options);
     });
+}
+
+function keepAwake(options) {
+  const handle = startKeepAwake({ enabled: options.keepAwake !== false });
+  if (handle.active) output.note('Keeping this machine awake while the tunnel is open (--no-keep-awake to disable)');
+  return handle;
 }
 
 function parsePort(port) {

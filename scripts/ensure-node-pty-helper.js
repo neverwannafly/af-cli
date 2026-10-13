@@ -1,25 +1,10 @@
-const fs = require('fs');
-const path = require('path');
-
-// node-pty's macOS prebuilt archive can lose the executable bit on spawn-helper.
-// Without it every PTY launch fails with the opaque "posix_spawnp failed" error.
-if (process.platform !== 'darwin') process.exit(0);
-
-const helperPath = path.join(
-  __dirname,
-  '..',
-  'node_modules',
-  'node-pty',
-  'prebuilds',
-  `${process.platform}-${process.arch}`,
-  'spawn-helper',
-);
-
-if (!fs.existsSync(helperPath)) process.exit(0);
+const { ensureSpawnHelperExecutable } = require('../lib/node-pty-helper');
 
 try {
-  fs.accessSync(helperPath, fs.constants.X_OK);
-} catch {
-  fs.chmodSync(helperPath, 0o755);
-  console.log('Fixed executable permission for node-pty spawn-helper');
+  if (ensureSpawnHelperExecutable().length) {
+    console.log('Fixed executable permission for node-pty spawn-helper');
+  }
+} catch (error) {
+  // Never fail an install over this; the CLI retries at runtime.
+  console.warn(`Could not fix node-pty spawn-helper permissions: ${error.message}`);
 }

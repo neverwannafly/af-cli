@@ -78,6 +78,8 @@ Publish a local HTTP service through API Frenzy.
 af-cli tunnel http <port> --name <name>
 ```
 
+While any `af-cli tunnel` command is running, the CLI keeps your machine from idle-sleeping (macOS via `caffeinate`, Linux via `systemd-inhibit`). Pass `--no-keep-awake` to opt out. Closing a laptop lid or choosing Sleep manually still suspends the machine and drops the tunnel.
+
 The command reads configuration from:
 
 ```text
