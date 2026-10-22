@@ -20,6 +20,16 @@ const READERS = Object.freeze({
   },
 });
 
+// GitHub endpoints return a keyed object (e.g. { repositories: [...] }) rather than a bare array.
+function unwrapRows(payload) {
+  const data = payload?.data ?? payload;
+  if (data && !Array.isArray(data)) {
+    const keyed = data.repositories ?? data.installations ?? data.items;
+    if (Array.isArray(keyed)) return unwrapMany(keyed);
+  }
+  return unwrapMany(payload);
+}
+
 function listCommand(program) {
   program.command('list <resource>')
     .description('List deployments, functions, schedules, tunnels, secrets, templates, groups, or GitHub resources')
@@ -32,9 +42,9 @@ function listCommand(program) {
           details: { allowed: Object.keys(READERS) },
         });
       }
-      const rows = unwrapMany(await reader(new ApiClient(), options));
+      const rows = unwrapRows(await reader(new ApiClient(), options));
       output.emit({ resource, items: rows });
     });
 }
 
-module.exports = { listCommand, READERS };
+module.exports = { listCommand, READERS, unwrapRows };

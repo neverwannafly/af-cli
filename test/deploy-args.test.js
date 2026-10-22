@@ -31,3 +31,18 @@ test('deploy rejects source-specific flags before network access', () => {
 test('environment values split on the first equals sign', () => {
   assert.deepEqual(envMap(['URL=https://example.test?a=b', 'EMPTY=']), { URL: 'https://example.test?a=b', EMPTY: '' });
 });
+
+test('deploy allows --port with --image and sends it as ports', () => {
+  const { commonArgs } = require('../commands/deploy');
+  const explicit = { getOptionValueSource: (name) => (name === 'port' ? 'cli' : 'default') };
+  const options = defaults({ port: '80', secretId: [], env: [] });
+  assert.doesNotThrow(() => validateDeployOptions(options, explicit));
+  assert.deepEqual(commonArgs(options).ports, [80]);
+});
+
+test('deploy still rejects --port for a non-node GitHub deploy', () => {
+  assert.throws(
+    () => validateDeployOptions(defaults({ image: undefined, repo: 'o/r', installationId: '1', port: '80' })),
+    /--port is valid only for --build-type node/,
+  );
+});

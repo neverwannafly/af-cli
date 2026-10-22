@@ -17,9 +17,9 @@ function validateDeployOptions(options, command) {
   if (!['dockerfile', 'static', 'node'].includes(options.buildType)) throw new AfError('Invalid --build-type', { code: 'validation_failed' });
   if (!['public_access', 'private_access'].includes(options.visibility)) throw new AfError('Invalid --visibility', { code: 'validation_failed' });
   if (options.startCommand && options.buildType !== 'node') throw new AfError('--start-command is valid only for --build-type node', { code: 'validation_failed' });
-  if (options.port && options.buildType !== 'node') throw new AfError('--port is valid only for --build-type node', { code: 'validation_failed' });
+  if (options.port && git && options.buildType !== 'node') throw new AfError('--port is valid only for --build-type node', { code: 'validation_failed' });
   if (options.image) {
-    const gitOnly = ['installationId', 'branch', 'buildType', 'dockerfilePath', 'buildContext', 'buildCommand', 'startCommand', 'port', 'rootDir'];
+    const gitOnly = ['installationId', 'branch', 'buildType', 'dockerfilePath', 'buildContext', 'buildCommand', 'startCommand', 'rootDir'];
     const invalid = gitOnly.find(explicitlySet);
     if (invalid) throw new AfError(`--${invalid.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)} is valid only for a GitHub deploy`, { code: 'validation_failed' });
   }
