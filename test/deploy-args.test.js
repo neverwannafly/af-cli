@@ -40,9 +40,22 @@ test('deploy allows --port with --image and sends it as ports', () => {
   assert.deepEqual(commonArgs(options).ports, [80]);
 });
 
-test('deploy still rejects --port for a non-node GitHub deploy', () => {
+test('deploy allows --port for a dockerfile GitHub deploy and sends it as ports', () => {
+  const { commonArgs } = require('../commands/deploy');
+  const explicit = { getOptionValueSource: (name) => (name === 'port' ? 'cli' : 'default') };
+  const options = defaults({ image: undefined, repo: 'o/r', installationId: '1', port: '8000', secretId: [], env: [] });
+  assert.doesNotThrow(() => validateDeployOptions(options, explicit));
+  assert.deepEqual(commonArgs(options).ports, [8000]);
+});
+
+test('deploy allows --port for a node GitHub deploy', () => {
+  const explicit = { getOptionValueSource: (name) => (name === 'port' ? 'cli' : 'default') };
+  assert.doesNotThrow(() => validateDeployOptions(defaults({ image: undefined, repo: 'o/r', installationId: '1', buildType: 'node', port: '4000' }), explicit));
+});
+
+test('deploy rejects --port for a static GitHub deploy', () => {
   assert.throws(
-    () => validateDeployOptions(defaults({ image: undefined, repo: 'o/r', installationId: '1', port: '80' })),
-    /--port is valid only for --build-type node/,
+    () => validateDeployOptions(defaults({ image: undefined, repo: 'o/r', installationId: '1', buildType: 'static', port: '80' })),
+    /--port is not valid for --build-type static/,
   );
 });

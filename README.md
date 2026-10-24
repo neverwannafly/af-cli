@@ -124,7 +124,12 @@ af-cli deploy --image nginx:alpine --name web --wait --timeout 10m
 af-cli deploy --repo octocat/hello --installation-id 300 --branch main \
   --build-type node --start-command "node server.js" --port 3000 \
   --name api --wait
+
+# Dockerfile repo whose app listens on 8000 (EXPOSE is not read; the server default is 3000)
+af-cli deploy --repo octocat/py-api --installation-id 300 --port 8000 --name py-api --wait
 ```
+
+`--port` sets the container port for `--image`, `--build-type dockerfile`, and `--build-type node` deploys. Static builds always serve on port 80.
 
 Plain environment variables can be repeated with `--env KEY=VALUE` or loaded with `--env-file`. Attach existing secrets by id with repeated `--secret-id`; the CLI does not accept secret values on deploy.
 
