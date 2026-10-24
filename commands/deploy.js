@@ -17,14 +17,14 @@ function validateDeployOptions(options, command) {
   if (!['dockerfile', 'static', 'node'].includes(options.buildType)) throw new AfError('Invalid --build-type', { code: 'validation_failed' });
   if (!['public_access', 'private_access'].includes(options.visibility)) throw new AfError('Invalid --visibility', { code: 'validation_failed' });
   if (options.startCommand && options.buildType !== 'node') throw new AfError('--start-command is valid only for --build-type node', { code: 'validation_failed' });
-  if (options.port && git && options.buildType !== 'node') throw new AfError('--port is valid only for --build-type node', { code: 'validation_failed' });
+  if (options.port && git && options.buildType === 'static') throw new AfError('--port is not valid for --build-type static (static sites always serve on port 80)', { code: 'validation_failed' });
   if (options.image) {
     const gitOnly = ['installationId', 'branch', 'buildType', 'dockerfilePath', 'buildContext', 'buildCommand', 'startCommand', 'rootDir'];
     const invalid = gitOnly.find(explicitlySet);
     if (invalid) throw new AfError(`--${invalid.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)} is valid only for a GitHub deploy`, { code: 'validation_failed' });
   }
   if (git && options.buildType === 'dockerfile') {
-    const invalid = ['buildCommand', 'startCommand', 'port', 'rootDir'].find(explicitlySet);
+    const invalid = ['buildCommand', 'startCommand', 'rootDir'].find(explicitlySet);
     if (invalid) throw new AfError(`--${invalid.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)} is not valid for --build-type dockerfile`, { code: 'validation_failed' });
   }
   if (git && options.buildType !== 'dockerfile') {
@@ -135,7 +135,7 @@ function deployCommand(program) {
     .option('--build-context <path>', 'Docker build context', '.')
     .option('--build-command <command>')
     .option('--start-command <command>')
-    .option('--port <port>')
+    .option('--port <port>', 'Container port the app listens on (image, dockerfile, or node builds; server default 3000)')
     .option('--root-dir <path>')
     .option('--env <KEY=VALUE>', 'Plain environment variable', collect, [])
     .option('--env-file <path>', 'Read plain KEY=VALUE entries')
@@ -183,7 +183,8 @@ function deployCommand(program) {
           build_context: options.buildContext,
           build_command: options.buildCommand,
           start_command: options.startCommand,
-          port: options.port ? positiveInteger(options.port, '--port') : undefined,
+          // node reads `port`; dockerfile reads `ports` (sent via commonArgs).
+          port: options.port && options.buildType === 'node' ? positiveInteger(options.port, '--port') : undefined,
           root_dir: options.rootDir,
           ...common,
         };
