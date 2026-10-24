@@ -15,3 +15,12 @@ test('github-repos fails before network access without an installation id', () =
     (error) => error.code === 'validation_failed',
   );
 });
+
+test('list unwraps the repositories key returned by the github repos endpoint', () => {
+  const { unwrapRows } = require('../commands/list');
+  const repos = [{ id: 1, full_name: 'o/r' }];
+  assert.deepEqual(unwrapRows({ repositories: repos }), repos);
+  assert.deepEqual(unwrapRows({ data: { repositories: repos } }), repos);
+  assert.deepEqual(unwrapRows({ data: [{ id: 2 }] }), [{ id: 2 }]);
+  assert.deepEqual(unwrapRows({}), []);
+});
